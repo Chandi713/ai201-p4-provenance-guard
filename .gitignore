@@ -8,6 +8,7 @@ __pycache__/
 .venv/
 venv/
 env/
+ai201-p4/
 
 # Hugging Face model cache
 .cache/
