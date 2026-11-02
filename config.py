@@ -58,14 +58,17 @@ MAX_CHARS = 10_000
 
 
 # ─── Scoring (Milestone 4) ───────────────────────────────────────────────────
-# How much each signal counts toward the combined score.
+# Not a weighted average. scoring.combine_signals places each signal in its own
+# band (human / unsure / AI, using the thresholds below) and picks a score by
+# which bands they land in — the full rule is in that function's docstring.
 #
-# ⚠️ These are placeholders. Milestone 4 asks you to write your combining rule
-# down BEFORE you code it, and to put the numbers in your README. Whatever you
-# decide, it goes here.
+# DISAGREEMENT_GAP  signals in neighbouring bands this close or closer are a
+#                   small split, and the model signal decides.
+# STRONG_AI_BAR     when one signal says AI and the other only "unsure", the AI
+#                   side must reach this to win; otherwise the result is unsure.
 
-WEIGHT_MODEL_SIGNAL = 0.5
-WEIGHT_STYLE_SIGNAL = 0.5
+DISAGREEMENT_GAP = 0.2
+STRONG_AI_BAR = 0.90
 
 
 # ─── Thresholds (Milestone 5) ────────────────────────────────────────────────

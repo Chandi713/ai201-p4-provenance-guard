@@ -49,14 +49,63 @@ def combine_signals(model_score: float, style_score: float) -> float:
       - Milestone 4 asks you to find a case where your two signals split and
         write it down. That case is what this rule exists to handle.
 
-    The weights in config.py are placeholders. Change them, or ignore them and
-    write a different rule.
+    ─────────────────────────────────────────────────────────────────────────
+    My rule. Each signal is first placed in its own band — human (≤ 0.53),
+    unsure, AI (≥ 0.77) — and the pair of bands decides:
+
+      1–3  Same band                 the higher score.
+      4, 6 Neighbouring bands, gap   model_score — perplexity reads the text,
+           ≤ DISAGREEMENT_GAP        so it settles small splits.
+      5    Human + unsure, wider     the human score. One confident signal is
+                                     enough to clear a writer.
+      7    Unsure + AI, wider        the AI score only if ≥ STRONG_AI_BAR,
+                                     else the unsure score.
+      8    Human + AI                each side's distance past its own line,
+                                     as a fraction of that line:
+                                       (0.53 − h) / 0.53  vs  (a − 0.77) / 0.77
+                                     The larger wins; an exact tie is 0.65.
+                                     The AI side tops out near 0.30, so a
+                                     human score under ~0.37 always wins.
+
+    The returned score always sits inside the band of the label it earns, so
+    `score_to_label` agrees with the rule and the README's ranges stay true.
     """
-    # TODO: replace this
-    return (
-        config.WEIGHT_MODEL_SIGNAL * model_score
-        + config.WEIGHT_STYLE_SIGNAL * style_score
-    )
+    model_band = _band(model_score)
+    style_band = _band(style_score)
+
+    if model_band == style_band:
+        return max(model_score, style_score)
+
+    by_band = {model_band: model_score, style_band: style_score}
+
+    if "human" in by_band and "ai" in by_band:
+        h, a = by_band["human"], by_band["ai"]
+        human_margin = (config.HUMAN_THRESHOLD - h) / config.HUMAN_THRESHOLD
+        ai_margin = (a - config.AI_THRESHOLD) / config.AI_THRESHOLD
+        if human_margin > ai_margin:
+            return h
+        if ai_margin > human_margin:
+            return a
+        return round((config.HUMAN_THRESHOLD + config.AI_THRESHOLD) / 2, 4)
+
+    # Neighbouring bands: one side is unsure.
+    if round(abs(model_score - style_score), 4) <= config.DISAGREEMENT_GAP:
+        return model_score
+
+    if "human" in by_band:
+        return by_band["human"]
+
+    a = by_band["ai"]
+    return a if a >= config.STRONG_AI_BAR else by_band["unsure"]
+
+
+def _band(score: float) -> str:
+    """Which label a single score would earn on its own. Same edges as score_to_label."""
+    if score >= config.AI_THRESHOLD:
+        return "ai"
+    if score <= config.HUMAN_THRESHOLD:
+        return "human"
+    return "unsure"
 
 
 def score_to_label(score: float) -> tuple[str, str]:

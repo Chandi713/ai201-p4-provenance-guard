@@ -113,20 +113,87 @@ token pushes text toward "human", which is a cheap way to evade the signal.
 
 ### Signal two — the style signal
 
-**What it measures:**
+**What it measures:** The shape of the text, without reading a word of it
+(`stylometry.py::style_signal`). Three measures, each mapped onto 0–1 where
+1 = AI-like, then weighted:
 
-**Why that might differ between human and AI writing:**
+| Measure | AI-like end (→ 1.0) | Human-like end (→ 0.0) | Weight |
+|---|---|---|---|
+| Sentence-length spread (stdev ÷ mean of words per sentence) | ≤ 0.15 | ≥ 0.45 | 0.4 |
+| Average word length (letters per word) | ≥ 6.0 | ≤ 4.0 | 0.4 |
+| Varied punctuation (`; : ( ) ! ?` and dashes, per sentence) | 0 | ≥ 0.5 | 0.2 |
+| Type-token ratio (unique ÷ total words) | computed and printed, not scored | | 0 |
 
-**What it can't see:**
+A one-sentence text has no spread, so that measure counts as a neutral 0.5.
+
+**Why that might differ between human and AI writing:** Generated prose
+tends toward even, mid-length sentences and reaches for long, safe words
+("enhance", "significantly", "stakeholders"), because that's what "most
+likely next word" produces on average. Human writing is lumpier, with a
+three-word sentence next to a forty-word one, and most people use shorter
+words.
+
+**How I got here:** My first version averaged spread, type-token ratio and
+punctuation with equal weight. It scored clearly-AI text 0.49 and
+clearly-human text 0.46, so it couldn't tell them apart. I checked each
+measure on 12 development paragraphs (6 AI, 6 human including plain writing,
+kept separate from my criteria test set):
+
+| Measure | AI average | Human average | |
+|---|---|---|---|
+| Spread | 0.23 | 0.51 | separates |
+| Average word length | 6.1 | 3.8 | separates, no overlap |
+| Punctuation variety | 0.00 | 0.03 | almost always 0 at paragraph length |
+| Type-token ratio | 0.88 | 0.72 | **points the wrong way**: plain writers repeat simple words, so they looked *more* AI-like |
+| Commas per sentence | 1.00 | 0.99 | no difference |
+
+The lesson: averaging in a measure that doesn't separate the groups drags
+every score toward 0.5. So I re-tuned spread, replaced type-token ratio with
+average word length, and kept punctuation at a small weight. After that, the
+AI paragraphs scored 0.77–0.97 and the human ones 0.12–0.45.
+
+**What it can't see:** Meaning. Anything that changes the shape without
+changing the substance moves it: short words swapped in, a "Honestly?", a
+colon, sentences split up. My lightly-edited AI paragraph scored **0.18**,
+firmly "human". It also misreads formal or academic human writing, because
+long words count as AI-like. (Signal one tends to read that kind of prose as
+human, so the two partly cover for each other.) Average word length is
+deliberately kind to plain writers, the people signal one is most likely to
+accuse. And my 6 AI development paragraphs were all in one generic style, so
+real AI text will probably separate less cleanly than this.
 
 ### The combining rule
 
 <!-- Write the rule in words, then give the numbers. What happens when the two
      signals disagree? -->
 
-**The rule:**
+**The rule:** Not an average. Each signal is first placed in its own band:
+human, unsure or AI. Then the pair of bands decides:
 
-**The numbers:**
+| # | Bands | Rule | Final score |
+|---|---|---|---|
+| 1–3 | Both in the same band | They agree | the higher of the two |
+| 4, 6 | Neighbouring bands, 0.2 apart or less | Small split: perplexity reads the text, so it decides | `model_score` |
+| 5 | Human + unsure, more than 0.2 apart | One confident signal is enough to **clear** a writer | the human-side score |
+| 7 | Unsure + AI, more than 0.2 apart | One confident signal is **not** enough to accuse unless it's very confident | the AI score if ≥ 0.90, otherwise the unsure score |
+| 8 | Human + AI | Each side's distance past its own line, as a fraction of that line. The larger wins. | `(0.53 − h)/0.53` vs `(a − 0.77)/0.77`; exact tie → 0.65 |
+
+The final score is always one that already sits in the band of the label it
+gets, so the score ranges under Label Variants are always true.
+
+Case 8 leans human on purpose: the AI side can reach at most
+(1 − 0.77)/0.77 ≈ 0.30, so any human-side score below about 0.37 wins however
+confident the AI side is. A missed AI text costs less than a wrongly accused
+writer.
+
+**The numbers:** (all in `config.py`)
+
+| Setting | Value |
+|---|---|
+| `HUMAN_THRESHOLD` | 0.53 (at or below → human) |
+| `AI_THRESHOLD` | 0.77 (at or above → AI) |
+| `DISAGREEMENT_GAP` | 0.2 |
+| `STRONG_AI_BAR` | 0.90 |
 
 **Where it lives:** `scoring.py::combine_signals`
 
@@ -135,6 +202,24 @@ token pushes text toward "human", which is a cheap way to evade the signal.
 
 **A case where my two signals split, and what my rule does with it:**
 
+Run through the live service:
+
+| Input | `model_score` | `style_score` | Case | `confidence` | Guess |
+|---|---|---|---|---|---|
+| Clearly AI | 0.878 | 0.765 | 6, gap 0.11 → model | 0.878 | ai |
+| Clearly human | 0.360 | 0.314 | 1, agree → max | 0.360 | human |
+| Plain human ("I go to school every day by bus…") | 0.761 | 0.327 | 5 → human side | 0.327 | human |
+| Lightly-edited AI | 0.640 | 0.183 | 5 → human side | 0.183 | human |
+
+Two of these split, and they show both sides of the trade. **The plain human
+paragraph** is the split my rule exists for. Signal one puts it 0.01 below the
+AI line, style says clearly human, and case 5 trusts the confident human
+signal, so a plain writer isn't accused. **The lightly-edited AI paragraph**
+splits the same way, unsure versus human, and gets through as "human" for
+exactly the same reason. My rule can't tell those two apart, because style
+can't read and a few short words and a "Honestly?" are cheap to add. I'm
+accepting that: the cost of the miss lands on the site, and the alternative
+lands on the plain writer.
 
 
 ---
