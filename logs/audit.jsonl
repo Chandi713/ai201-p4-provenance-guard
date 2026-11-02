@@ -1,0 +1,11 @@
+{"timestamp": "2026-11-02T06:45:44+00:00", "content_id": "cf4a8847-0552-415e-ace4-cc391f6df67e", "creator_id": "smit", "guess": "unsure", "model_score": 0.3672, "style_score": null, "combined_score": null, "label": "placeholder", "status": "decided"}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json", "message": "Send a JSON object with 'text' and 'creator_id'."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "invalid_json", "message": "Send a JSON object with 'text' and 'creator_id'."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "smit", "event": "rejected", "status": "rejected", "reason": "missing_field", "message": "'text' is required."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "smit", "event": "rejected", "status": "rejected", "reason": "missing_field", "message": "'text' is empty."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "smit", "event": "rejected", "status": "rejected", "reason": "text_too_short", "message": "'text' has 4 words; at least 20 are needed to judge it."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "smit", "event": "rejected", "status": "rejected", "reason": "text_too_long", "message": "'text' is 10005 characters; the limit is 10000."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "smit", "event": "rejected", "status": "rejected", "reason": "invalid_type", "message": "'text' must be a string."}
+{"timestamp": "2026-11-02T06:45:44+00:00", "creator_id": "unknown", "event": "rejected", "status": "rejected", "reason": "missing_field", "message": "'creator_id' is required."}
+{"timestamp": "2026-11-02T06:54:18+00:00", "content_id": "46484925-28d1-4319-ac53-9baa34015d05", "creator_id": "smit", "guess": "unsure", "model_score": 0.3672, "style_score": null, "combined_score": null, "label": "placeholder", "status": "decided"}
+{"timestamp": "2026-11-02T06:57:06+00:00", "creator_id": "smit", "event": "rejected", "status": "rejected", "reason": "text_too_short", "message": "'text' has 5 words; at least 7 are needed to judge it."}

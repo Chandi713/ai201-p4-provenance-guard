@@ -47,6 +47,16 @@ DETECTOR_MODEL = os.getenv("AI201_DETECTOR_MODEL", "gpt2")
 DETECTOR_MAX_TOKENS = 400
 
 
+# ─── Input limits (Milestone 3) ──────────────────────────────────────────────
+# Below MIN_WORDS neither signal has enough to measure: perplexity needs a few
+# sentences and the style signal needs more than one sentence to compare.
+# MAX_CHARS is generous for a poem or essay; the detector only reads the first
+# DETECTOR_MAX_TOKENS anyway, so anything past this is refused, not scored.
+
+MIN_WORDS = 20
+MAX_CHARS = 10_000
+
+
 # ─── Scoring (Milestone 4) ───────────────────────────────────────────────────
 # How much each signal counts toward the combined score.
 #

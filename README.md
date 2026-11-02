@@ -39,6 +39,33 @@
 <!-- The path a submission takes, from arriving to the label a reader sees.
      Six or seven steps — this is the trace you wrote in Milestone 1. -->
 
+1. **The writing site POSTs JSON to `/submit`** with `text` and `creator_id`.
+   The service now has the raw text and knows who sent it.
+2. **The route validates it** (`app.py::submit`). `text` must be a non-empty
+   string of at least 20 words and at most 10,000 characters, and `creator_id`
+   must be a non-empty string. Anything else gets a `400` (or `413` for text
+   that's too long) with a JSON message saying what to fix, and the refusal is
+   logged with `audit.log_rejection`. No model runs on a refused request. A
+   valid request gets a new `content_id` (a uuid).
+3. **Signal one, `detector.model_signal`**, runs GPT-2 locally and measures how
+   predictable the text is. Out comes `model_score`, 0–1, higher = more
+   AI-like.
+4. **Signal two, `stylometry.style_signal`**, measures the shape of the text
+   without reading it. Out comes `style_score`, 0–1, same direction.
+5. **`scoring.combine_signals`** turns the two scores into one `confidence`
+   score, 0–1. This is where the false-positive trade-off actually gets made.
+6. **`scoring.score_to_label`** places that score in one of three bands and
+   returns a short `guess` (`human` / `unsure` / `ai`) plus the plain-English
+   `label` a reader sees.
+7. **`audit.log_decision`** appends the decision to `logs/audit.jsonl`
+   (timestamp, content_id, creator_id, guess, both signal scores, the combined
+   score, label, status `decided`), and the writer gets back `content_id`,
+   `guess`, `confidence`, `label`, `model_score`, `style_score` and `status`.
+
+If the writer disagrees, they POST the `content_id` and their reasoning to
+`/appeal`. That adds a second log entry for the same item with status
+`under_review`. Nothing is overwritten, so the original decision and the
+challenge sit side by side.
 
 
 ---
@@ -53,11 +80,36 @@
 
 ### Signal one — the model signal
 
-**What it measures:**
+**What it measures:** How predictable the text is to GPT-2, running locally
+(`detector.py::model_signal`). The model's perplexity, meaning how surprised it
+is by each next word, is squashed onto 0–1. Perplexity 45 maps to 0.5. Lower
+perplexity pushes the score toward 1 (AI), higher toward 0 (human).
 
-**Why that might differ between human and AI writing:**
+**Why that might differ between human and AI writing:** A language model writes
+by repeatedly picking a likely next word, so text a model produced tends to be
+text a model finds easy to predict. People wander more: odd word choices,
+specific details, abrupt turns.
 
-**What it can't see:**
+**What it can't see:** Who wrote the text. Predictable is not the same as
+machine-written. People who write plainly, such as second-language writers,
+younger writers, or anyone keeping it simple on purpose, use common words in
+short sentences, and that scores as AI-like. The reverse also happens: ornate
+prose and even typos raise perplexity and read as human.
+
+What I saw when I ran it:
+
+| Text | Perplexity | `model_score` |
+|---|---|---|
+| Clearly AI (generic paragraph about AI's benefits) | 13.1 | 0.88 |
+| Clearly human (a memory of my grandmother's button tin) | 64.6 | 0.36 |
+| Plain human ("I go to school every day by bus…") | 21.8 | **0.76** |
+| "I like my school. My teacher is nice. We learn math and English every day." | 28.7 | 0.67 |
+| "Thefog lay on the harbour like wet wool…" (accidental typo) | 267.3 | 0.05 |
+
+The plain human paragraph scored 0.76, one hundredth below my AI line (0.77).
+On this signal alone, plain human writing is almost indistinguishable from
+machine writing. The typo in "Thefog" shows the opposite failure: one unusual
+token pushes text toward "human", which is a cheap way to evade the signal.
 
 ### Signal two — the style signal
 
@@ -121,14 +173,26 @@
      two off the response, so leaving them out costs you next unit's
      diagnostics. -->
 
+> Interim run from Milestone 3: one signal wired in, `confidence`, `label` and
+> `style_score` are still placeholders. Replaced with a full run after
+> Milestone 5.
+
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "...", "creator_id": "..."}'
+  -d '{"text": "My grandmother kept her buttons in a biscuit tin that had long since lost its biscuits. On wet Sundays she would tip them out on the rug and let me sort them by colour.", "creator_id": "smit"}'
 ```
 
 ```json
-
+{
+  "confidence": null,
+  "content_id": "46484925-28d1-4319-ac53-9baa34015d05",
+  "guess": "unsure",
+  "label": "placeholder",
+  "model_score": 0.3672,
+  "status": "decided",
+  "style_score": null
+}
 ```
 
 **An appeal**
@@ -146,11 +210,26 @@ $ curl -X POST http://127.0.0.1:5000/appeal \
 **What the log shows afterwards**
 
 ```bash
-$ curl "http://127.0.0.1:5000/log?limit=3"
+$ curl "http://127.0.0.1:5000/log?limit=1"
 ```
 
 ```json
-
+{
+  "count": 1,
+  "entries": [
+    {
+      "combined_score": null,
+      "content_id": "46484925-28d1-4319-ac53-9baa34015d05",
+      "creator_id": "smit",
+      "guess": "unsure",
+      "label": "placeholder",
+      "model_score": 0.3672,
+      "status": "decided",
+      "style_score": null,
+      "timestamp": "2026-11-02T06:54:18+00:00"
+    }
+  ]
+}
 ```
 
 ---
