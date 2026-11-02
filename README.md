@@ -378,17 +378,42 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
 
 ## How I Used AI
 
-**Moment 1**
+**Moment 1 — the style signal**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* My first style signal scored clearly-AI text 0.49 and
+  clearly-human text 0.46. I asked Claude to tune its cut-offs so it would
+  separate the two.
+- *What came back:* Instead of just moving numbers, it measured each feature on
+  12 development paragraphs and showed that two of my three measures didn't
+  separate AI from human at paragraph length. Type-token ratio actually pointed
+  the wrong way, and punctuation was almost always 0. It proposed dropping
+  type-token ratio from the score and adding average word length (AI 6.1
+  letters vs human 3.8).
+- *What I changed:* I worked out *why* it failed before accepting the fix:
+  averaging over-reduces the signal, because measures that don't discriminate
+  drag every score toward 0.5. I also checked that the redesign changed only
+  how `style_score` is calculated, not my thresholds, combining rule or
+  criteria. Then I tested it on lightly-edited AI myself and decided the
+  remaining evasion was acceptable, because those pieces land in "unsure"
+  rather than "human".
 
-**Moment 2**
+**Moment 2 — the AI label**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* My first AI label said "We guarantee that the text has
+  been written by an AI", and my second said "It is created using an AI and can
+  be recognized by style-of-writing…". Claude pointed out problems with both,
+  and I asked it to write one.
+- *What came back:* "Our checks found patterns often seen in AI-generated
+  writing, such as very predictable word choices and evenly sized sentences.
+  This doesn't prove it wasn't written by you. If you wrote it yourself, you
+  can ask for a review."
+- *What I changed:* I kept it because it fixed what I had wrong: my own
+  criterion 1 allows 1 in 10 real writers to get this label, so "guarantee"
+  would be a lie to each of them, and my version never mentioned the appeal.
+  It also kept my idea of telling the writer *what* was noticed, limited to
+  things my system actually measures. I then had my human and unsure labels
+  reworded to match, so all three speak to the writer about "this" piece
+  instead of "the text".
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
