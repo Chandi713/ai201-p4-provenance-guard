@@ -241,7 +241,6 @@ def submit():
 
     style_score = stylometry.style_signal(text)
     confidence = scoring.combine_signals(model_score, style_score)
-    # The label wording is still the starter's placeholder until Milestone 5.
     guess, label = scoring.score_to_label(confidence)
 
     audit.log_decision(
@@ -292,14 +291,37 @@ def appeal():
     to the person on the other end. It's the only thing standing between a
     wrong accusation and nothing at all.
     """
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return _reject(400, "invalid_json", "Send a JSON object with 'content_id' and 'reasoning'.")
 
-    # TODO: delete this and build the route.
+    content_id = payload.get("content_id")
+    reasoning = payload.get("reasoning")
+    if not isinstance(content_id, str) or not content_id.strip():
+        return _reject(400, "missing_field", "'content_id' is required.")
+    if not isinstance(reasoning, str) or not reasoning.strip():
+        return _reject(400, "missing_field", "'reasoning' is required.")
+
+    # Only a real decision can be appealed. A typo'd id must fail loudly.
+    decisions = [e for e in audit.entries_for(content_id) if e.get("status") == "decided"]
+    if not decisions:
+        return _reject(404, "not_found", f"No submission with content_id '{content_id}'.")
+
+    # A repeat appeal is logged again; the status is already under_review and stays so.
+    audit.log_appeal(
+        content_id=content_id,
+        creator_id=decisions[0]["creator_id"],
+        reasoning=reasoning,
+    )
+
     return jsonify({
-        "error": "not_implemented",
-        "message": "POST /appeal isn't built yet — see the TODO in app.py.",
-        "you_sent": payload,
-    }), 501
+        "content_id": content_id,
+        "status": "under_review",
+        "message": (
+            "Thank you. Your appeal has been recorded, and a person will review "
+            "this piece. Until then it is marked as under review."
+        ),
+    })
 
 
 # ── Already works ─────────────────────────────────────────────────────────────

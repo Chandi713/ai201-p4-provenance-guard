@@ -233,14 +233,51 @@ lands on the plain writer.
 
 | Label | Score range | The exact text a reader sees |
 |---|---|---|
-| high-confidence human |  |  |
-| unsure |  |  |
-| high-confidence AI |  |  |
+| high-confidence human | 0.00 – 0.53 | Our checks suggest this was written by a person. |
+| unsure | 0.53 – 0.77 | We can't tell with confidence whether this was written by a person or with AI, so we haven't labelled it either way. |
+| high-confidence AI | 0.77 – 1.00 | Our checks found patterns often seen in AI-generated writing, such as very predictable word choices and evenly sized sentences. This doesn't prove it wasn't written by you. If you wrote it yourself, you can ask for a review. |
+
+A score of exactly 0.53 is human and exactly 0.77 is AI
+(`scoring.py::score_to_label`). Every score from 0 to 1 lands in one band, and
+all three were reached by real submissions:
+
+| Input | `confidence` | Label |
+|---|---|---|
+| "Who invented a telephone? Was it Mr. Graham Bell or Nichola Tesla?…" | 0.127 | human |
+| "Igloos are traditionally built by Inuit people using compact blocks of snow…" | 0.544 | unsure |
+| "The Solar System consists of the Sun and all the celestial bodies…" | 0.891 | AI |
 
 **Why I worded the "unsure" one this way:**
 <!-- It's the hardest of the three. It has to admit uncertainty without
      sounding like an accusation, because the person reading it may well have
      written every word themselves. -->
+
+This is exactly what the "unsure" label is for. When I read the
+lightly-edited AI paragraphs myself, I couldn't reliably tell them apart from
+human writing, and if a careful human reader can't, my system has no grounds to
+be more certain. A confident "AI" label there would be a claim the evidence
+doesn't support. In my runs the edits mostly took the AI label away rather than
+clearing the text: signal one still leaned AI (0.84 and 0.89), so these pieces
+landed in unsure, not human. Missing some AI text costs the site a little;
+wrongly accusing a writer costs that person a lot. So when the evidence is this
+thin, my system says "we can't tell" instead of guessing, and that safeguard
+against false accusations is worth the AI text it lets through.
+
+That's why the label names both possibilities equally, "a person or with AI",
+and says only that *we* can't tell. It describes the system's limits, not the
+writer. It also says "we haven't labelled it either way", so the writer knows
+nothing has been decided against them. My first draft said the writing was
+ambiguous about whether it was "purely" written by a human, which quietly
+suggests the writer mixed in AI help, so I cut it. All three labels speak to
+the writer about "this" piece and say what "our checks" found, rather than
+talking about "the text".
+
+The AI label went through the same check. My first version said "We guarantee
+that the text has been written by an AI", but my own criterion 1 allows 1 in 10
+real writers to get that label, so "guarantee" would be false for them. The
+final version says what the checks *noticed*, names only things my system
+actually measures, says it isn't proof, and tells the writer they can ask for a
+review.
 
 
 
@@ -258,25 +295,23 @@ lands on the plain writer.
      two off the response, so leaving them out costs you next unit's
      diagnostics. -->
 
-> Interim run from Milestone 3: one signal wired in, `confidence`, `label` and
-> `style_score` are still placeholders. Replaced with a full run after
-> Milestone 5.
+A piece that gets the AI label, and the writer appealing it.
 
 ```bash
 $ curl -X POST http://127.0.0.1:5000/submit \
   -H "Content-Type: application/json" \
-  -d '{"text": "My grandmother kept her buttons in a biscuit tin that had long since lost its biscuits. On wet Sundays she would tip them out on the rug and let me sort them by colour.", "creator_id": "smit"}'
+  -d '{"text": "The Solar System consists of the Sun and all the celestial bodies that orbit around it, including eight planets, their moons, asteroids, and comets. The Sun'"'"'s gravitational pull holds the Solar System together, while the planets revolve around it in their respective orbits.", "creator_id": "smit"}'
 ```
 
 ```json
 {
-  "confidence": null,
-  "content_id": "46484925-28d1-4319-ac53-9baa34015d05",
-  "guess": "unsure",
-  "label": "placeholder",
-  "model_score": 0.3672,
+  "confidence": 0.8905,
+  "content_id": "78ad23d7-9810-4a21-93df-aeef348ed63e",
+  "guess": "ai",
+  "label": "Our checks found patterns often seen in AI-generated writing, such as very predictable word choices and evenly sized sentences. This doesn't prove it wasn't written by you. If you wrote it yourself, you can ask for a review.",
+  "model_score": 0.8905,
   "status": "decided",
-  "style_score": null
+  "style_score": 0.8273
 }
 ```
 
@@ -285,33 +320,55 @@ $ curl -X POST http://127.0.0.1:5000/submit \
 ```bash
 $ curl -X POST http://127.0.0.1:5000/appeal \
   -H "Content-Type: application/json" \
-  -d '{"content_id": "...", "reasoning": "..."}'
-```
-
-```json
-
-```
-
-**What the log shows afterwards**
-
-```bash
-$ curl "http://127.0.0.1:5000/log?limit=1"
+  -d '{"content_id": "78ad23d7-9810-4a21-93df-aeef348ed63e", "reasoning": "I wrote this summary myself for my science class, from my own notes."}'
 ```
 
 ```json
 {
-  "count": 1,
+  "content_id": "78ad23d7-9810-4a21-93df-aeef348ed63e",
+  "message": "Thank you. Your appeal has been recorded, and a person will review this piece. Until then it is marked as under review.",
+  "status": "under_review"
+}
+```
+
+An appeal on an id that doesn't exist fails loudly instead of looking like it
+worked:
+
+```json
+{"error": "not_found", "message": "No submission with content_id 'not-a-real-id'."}
+```
+
+**What the log shows afterwards**
+
+The original decision stays exactly as it was, and the appeal sits after it
+with the new status.
+
+```bash
+$ curl "http://127.0.0.1:5000/log?limit=2"
+```
+
+```json
+{
+  "count": 2,
   "entries": [
     {
-      "combined_score": null,
-      "content_id": "46484925-28d1-4319-ac53-9baa34015d05",
+      "combined_score": 0.8905,
+      "content_id": "78ad23d7-9810-4a21-93df-aeef348ed63e",
       "creator_id": "smit",
-      "guess": "unsure",
-      "label": "placeholder",
-      "model_score": 0.3672,
+      "guess": "ai",
+      "label": "Our checks found patterns often seen in AI-generated writing, such as very predictable word choices and evenly sized sentences. This doesn't prove it wasn't written by you. If you wrote it yourself, you can ask for a review.",
+      "model_score": 0.8905,
       "status": "decided",
-      "style_score": null,
-      "timestamp": "2026-11-02T06:54:18+00:00"
+      "style_score": 0.8273,
+      "timestamp": "2026-11-02T07:56:47+00:00"
+    },
+    {
+      "content_id": "78ad23d7-9810-4a21-93df-aeef348ed63e",
+      "creator_id": "smit",
+      "event": "appeal",
+      "reasoning": "I wrote this summary myself for my science class, from my own notes.",
+      "status": "under_review",
+      "timestamp": "2026-11-02T07:56:51+00:00"
     }
   ]
 }
