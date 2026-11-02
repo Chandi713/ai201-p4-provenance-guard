@@ -263,6 +263,19 @@ wrongly accusing a writer costs that person a lot. So when the evidence is this
 thin, my system says "we can't tell" instead of guessing, and that safeguard
 against false accusations is worth the AI text it lets through.
 
+The runs behind that, each an AI paragraph before and after one light edit:
+
+| Edit | Original → | Edited: `model_score` | `style_score` | Case | Label |
+|---|---|---|---|---|---|
+| Long words swapped for short ones (exercise paragraph) | ai (0.92) | 0.84 | 0.54 | 7: 0.84 < 0.90 | unsure |
+| Two tiny sentences added, "It is huge." (climate paragraph) | ai (0.92) | 0.89 | 0.56 | 7: 0.89 < 0.90 | unsure |
+| `; ( ) ? : !` added (reading paragraph) | ai (0.96) | 0.60 | 0.40 | 4: gap ≤ 0.2 → model | unsure |
+| All of the above at once ("Honestly?" paragraph) | — | 0.64 | 0.18 | 5 → human side | human |
+
+Single edits moved these pieces from AI to unsure. Only the heavier edit, short
+words plus punctuation plus short sentences together, got all the way to
+human. The second row missed my 0.90 bar by 0.011.
+
 That's why the label names both possibilities equally, "a person or with AI",
 and says only that *we* can't tell. It describes the system's limits, not the
 writer. It also says "we haven't labelled it either way", so the writer knows
@@ -397,23 +410,28 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
   remaining evasion was acceptable, because those pieces land in "unsure"
   rather than "human".
 
-**Moment 2 — the AI label**
+**Moment 2 — recording results and wording my reasoning**
 
-- *What I asked for:* My first AI label said "We guarantee that the text has
-  been written by an AI", and my second said "It is created using an AI and can
-  be recognized by style-of-writing…". Claude pointed out problems with both,
-  and I asked it to write one.
-- *What came back:* "Our checks found patterns often seen in AI-generated
-  writing, such as very predictable word choices and evenly sized sentences.
-  This doesn't prove it wasn't written by you. If you wrote it yourself, you
-  can ask for a review."
-- *What I changed:* I kept it because it fixed what I had wrong: my own
-  criterion 1 allows 1 in 10 real writers to get this label, so "guarantee"
-  would be a lie to each of them, and my version never mentioned the appeal.
-  It also kept my idea of telling the writer *what* was noticed, limited to
-  things my system actually measures. I then had my human and unsure labels
-  reworded to match, so all three speak to the writer about "this" piece
-  instead of "the text".
+- *What I asked for:* Two things. First, to save every result as we went, run
+  checks against the live service and the audit log, and update this README
+  after each milestone, so nothing I'd found got lost before the write-up.
+  Second, to rephrase my "Why this target" reasons in `criteria.md` so they
+  said clearly what I meant. I gave the reasoning myself; for example, that
+  the appeal and bad-input criteria involve no model, so their result can't
+  vary between trials and anything under 100% is a bug.
+- *What came back:* Curl runs and `GET /log` checks after each step (all 7
+  bad inputs returning 4xx, appeals moving to `under_review`, the 404 on a fake
+  id), README sections filled from those real outputs, and reworded reasons for
+  each criterion. For criterion 1 it also flagged that "plain, simple
+  language" was undefined, so someone else couldn't tell which pieces counted,
+  and added a definition (short sentences of about 12 words or fewer, everyday
+  words).
+- *What I changed:* I read each reason against what I'd actually argued and
+  only kept wording that matched it. For criterion 3 I picked the version
+  that explains why each label gets 3 inputs but only has to appear once. When
+  I'd changed `MIN_WORDS` to 7 in the config, the check caught that it no
+  longer matched my committed criterion 5 (under 20 words), and I put it back
+  to 20 rather than let the code and the criteria drift apart.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
