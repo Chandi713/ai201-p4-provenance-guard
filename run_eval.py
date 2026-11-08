@@ -112,15 +112,30 @@ def main():
 
         trials = []
         for trial in range(1, args.trials + 1):
+            if scenario.get("appeals"):
+                results = run_appeals(requests, args, scenario["appeals"], trial)
+                trials.append(results)
+                print(f"  trial {trial}: {', '.join(str(r.get('status')) for r in results)}")
+                continue
+
             results = []
             for i, body in enumerate(bodies_for(scenario), 1):
                 preview = describe(body)
                 try:
-                    response = requests.post(f"{args.url}/submit", json=body,
-                                             timeout=args.timeout)
+                    if "raw" in body:
+                        # A body that isn't a JSON object can't be a dict, so it's
+                        # sent as raw bytes with the content type it claims.
+                        response = requests.post(
+                            f"{args.url}/submit", data=body["raw"].encode("utf-8"),
+                            headers={"Content-Type": body.get("content_type", "application/json")},
+                            timeout=args.timeout)
+                    else:
+                        response = requests.post(f"{args.url}/submit", json=body,
+                                                 timeout=args.timeout)
                     payload = response.json() if response.content else {}
                     results.append({
                         "status": response.status_code,
+                        "error": payload.get("error"),
                         "guess": payload.get("guess"),
                         "confidence": payload.get("confidence"),
                         "model_score": payload.get("model_score"),
@@ -139,6 +154,48 @@ def main():
         rows.append({"scenario": scenario, "trials": trials})
 
     write_report(rows, args)
+
+
+def run_appeals(requests, args, spec, trial):
+    """
+    The appeal path: submit, appeal against the content_ids that came back,
+    then read GET /log to check each appeal left an entry.
+
+    `spec` has "texts" (submitted first), "repeat" (indexes into texts that
+    get a second appeal) and "fake_ids" (content_ids that were never issued).
+    """
+    content_ids = []
+    for i, text in enumerate(spec["texts"], 1):
+        body = {"text": text, "creator_id": f"eval_appeal_{i}"}
+        response = requests.post(f"{args.url}/submit", json=body, timeout=args.timeout)
+        content_ids.append(response.json().get("content_id"))
+
+    appeals = [("real", cid) for cid in content_ids]
+    appeals += [("repeat", content_ids[i]) for i in spec["repeat"]]
+    appeals += [("fake", f"{fake}-t{trial}") for fake in spec["fake_ids"]]
+
+    results = []
+    for kind, cid in appeals:
+        try:
+            response = requests.post(
+                f"{args.url}/appeal",
+                json={"content_id": cid, "reasoning": "I wrote this myself."},
+                timeout=args.timeout)
+            payload = response.json() if response.content else {}
+            results.append({"kind": kind, "content_id": cid,
+                            "status": response.status_code,
+                            "item_status": payload.get("status"),
+                            "error": payload.get("error")})
+        except Exception as exc:  # noqa: BLE001
+            results.append({"kind": kind, "content_id": cid, "status": None,
+                            "error": f"{type(exc).__name__}: {exc}"})
+
+    log = requests.get(f"{args.url}/log", timeout=args.timeout).json()["entries"]
+    for result in results:
+        result["appeal_entries_in_log"] = sum(
+            1 for e in log
+            if e.get("content_id") == result["content_id"] and e.get("event") == "appeal")
+    return results
 
 
 def write_report(rows, args):
