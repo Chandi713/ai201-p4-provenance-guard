@@ -439,24 +439,52 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
 
 ## Rate Limiting
 
-**My limits:** ___ per minute, ___ per day
+**My limits:** 5 per minute, 50 per day (`config.py`: `RATE_LIMIT_PER_MINUTE`,
+`RATE_LIMIT_PER_DAY`; the `@limiter.limit(...)` decorator on `submit` in `app.py`)
 
 **Why those numbers and not others:**
-<!-- Think about two people: a real writer submitting their own work a few
-     times an hour, and a script sending a thousand variations to map your
-     thresholds. Your numbers have to be liveable for the first and hostile to
-     the second. -->
 
-**What a caller counts as:** <!-- per address, or per creator_id? They fail
-differently — one script can look like a thousand callers, and one household
-can look like one. -->
+- **A real writer.** Someone checking their own work pastes a piece, reads the
+  label, maybe edits and pastes again. Even a writer submitting a batch of old
+  pieces has to copy each one in, which takes longer than 12 seconds a piece, so
+  5 a minute never gets in their way. 50 a day is more pieces than one person
+  writes in a week.
+- **A script mapping my thresholds.** My combining rule has sharp edges (0.53,
+  0.77, the 0.90 strong-AI bar, the 0.2 gap). Finding them means sending
+  hundreds of small variations of one text and watching where the label flips.
+  At 5 a minute and 50 a day per caller, that takes days instead of seconds.
+- **Why not the starter's 10/200.** 200 a day is four times what a writer needs
+  and gives a script 200 free probes per id per day. **Why not 3/30.** A writer
+  who edits a sentence and re-submits a few times in a row would hit 3 a minute
+  quickly, and being told "too many submissions" while fixing your own work
+  feels like being accused twice.
+- Every submission also runs a language model for a second or two, so the
+  per-minute limit protects the service from being swamped, not only the
+  thresholds from being mapped.
+
+**What a caller counts as:** the `creator_id` in the request, falling back to
+the caller's address when there isn't a usable one (`app.py::rate_limit_key`).
+That fails in a known way: a script that makes up a new `creator_id` for every
+request is a new caller each time and is never limited (the attack set's
+`attacks.csv` does exactly this). Limiting by address instead would catch that
+script but would lump a whole household or school network together as one
+caller. I kept per-creator because the people who pay for a wrongly shared
+limit are real writers, and the script that rotates ids is visible in the audit
+log as many one-off creators.
 
 **The run of status codes when I pushed past it:**
 
-<!-- python run_attacks.py --flood 15 -->
+`python run_attacks.py --flood 15` → `results/flood_2026-11-08_0102.md`
 
 ```
+200 200 200 200 200 429 429 429 429 429 429 429 429 429 429
+```
 
+10 of 15 were rate limited. Each 429 left an entry in the audit log
+(written by the 429 handler in `app.py::rate_limited`):
+
+```json
+{"creator_id": "flood_tester", "event": "rejected", "limit": "5 per 1 minute", "reason": "rate_limited", "status": "rejected", "timestamp": "2026-11-08T06:02:59+00:00"}
 ```
 
 ---
