@@ -469,8 +469,15 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
      to the strict reading: criterion 5 is MISSED for one 429 in trial 3, and
      `unsure` counts as broke for AI text. It also predicted which rows the
      case-8 change would move, and its cost, before the re-run.
-- *What I changed:* _(to fill in after I've reviewed the verdicts and
-  diagnoses: what I agreed with, what I challenged, and what I changed)_
+- *What I changed:* I reviewed the verdicts and diagnoses and agreed with
+  them, including the strict calls: criterion 5 MISSED for a single 429 in
+  trial 3, and `unsure` counting as broke for AI text. There were two
+  candidate improvements: the case-8 combining-rule change, and fixing the
+  rate limiter that caused the criterion 5 miss. I kept the case-8 change. It
+  fixes the more serious failure, AI text being actively cleared as "written by
+  a person". The limiter fix would only change which error a malformed test
+  request gets back, not any label a writer sees. I left the limiter fix under
+  What's Still Broken.
 
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
