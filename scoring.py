@@ -60,12 +60,10 @@ def combine_signals(model_score: float, style_score: float) -> float:
                                      enough to clear a writer.
       7    Unsure + AI, wider        the AI score only if ≥ STRONG_AI_BAR,
                                      else the unsure score.
-      8    Human + AI                each side's distance past its own line,
-                                     as a fraction of that line:
-                                       (0.53 − h) / 0.53  vs  (a − 0.77) / 0.77
-                                     The larger wins; an exact tie is 0.65.
-                                     The AI side tops out near 0.30, so a
-                                     human score under ~0.37 always wins.
+      8    Human + AI                unsure, 0.65 (midway between the lines).
+                                     Changed in unit 8: it used to compare
+                                     each side's distance past its own line,
+                                     and the human side nearly always won.
 
     The returned score always sits inside the band of the label it earns, so
     `score_to_label` agrees with the rule and the README's ranges stay true.
@@ -78,14 +76,10 @@ def combine_signals(model_score: float, style_score: float) -> float:
 
     by_band = {model_band: model_score, style_band: style_score}
 
+    # Unit 8 improvement: the two methods flatly contradict each other, which
+    # is no evidence either way. This used to compare margins, and an attacker
+    # who fooled one signal could buy a confident "human" with it.
     if "human" in by_band and "ai" in by_band:
-        h, a = by_band["human"], by_band["ai"]
-        human_margin = (config.HUMAN_THRESHOLD - h) / config.HUMAN_THRESHOLD
-        ai_margin = (a - config.AI_THRESHOLD) / config.AI_THRESHOLD
-        if human_margin > ai_margin:
-            return h
-        if ai_margin > human_margin:
-            return a
         return round((config.HUMAN_THRESHOLD + config.AI_THRESHOLD) / 2, 4)
 
     # Neighbouring bands: one side is unsure.
