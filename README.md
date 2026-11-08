@@ -186,6 +186,12 @@ Case 8 leans human on purpose: the AI side can reach at most
 confident the AI side is. A missed AI text costs less than a wrongly accused
 writer.
 
+> **Changed in unit 8:** case 8 now returns **unsure at 0.65** whenever one
+> signal is in the human band and the other in the AI band. The attack run
+> showed a fooled signal could buy a confident "human" through the old rule.
+> The table above is the rule the *before* runs used; see
+> [The Improvement](#the-improvement) for why it changed and what it cost.
+
 **The numbers:** (all in `config.py`)
 
 | Setting | Value |
