@@ -433,6 +433,37 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
   longer matched my committed criterion 5 (under 20 words), and I put it back
   to 20 rather than let the code and the criteria drift apart.
 
+**Moment 3 (unit 8): the human writing for criterion 1**
+
+- *What I asked for:* I gave Claude ten famous one-sentence quotations
+  (Lovelace, Austen, Smith, Darwin, Thoreau and others) as the human set for
+  criterion 1.
+- *What came back:* Before running anything, it flagged that the set couldn't
+  test the criterion as I'd written it. None were plain language, though the
+  criterion requires 3 of 10. Each was one sentence, so signal two's spread
+  measure had nothing to compare. And famous lines are likely memorised by
+  GPT-2, which would test memorisation rather than authorship.
+- *What I changed:* I chose to keep the same authors but use the full published
+  paragraphs (fetched verbatim from Project Gutenberg), and to take the 3 plain
+  pieces from *McGuffey's Second Eclectic Reader*. Lovelace, Kennedy and
+  Brillat-Savarin dropped out: no Gutenberg text, no source text, and a
+  translation.
+
+**Moment 4 (unit 8): drafting the verdicts, diagnoses and the improvement**
+
+- *What I asked for:* I picked the rate limits (5/minute, 50/day) from options
+  with reasons. I asked Claude to run everything, and to draft the held/broke
+  marks, the verdicts, the diagnoses and the choice of improvement for me to
+  review.
+- *What came back:* the runs, the marks, and diagnoses backed by measurements
+  it took after the run (per-feature style numbers, per-token perplexity, the
+  unedited paragraph's score). It held itself to the strict reading: criterion
+  5 is marked MISSED for one 429 in trial 3, and `unsure` counts as broke for
+  AI text. It proposed the case-8 change and predicted, before re-running,
+  which rows would move and what it would cost.
+- *What I changed:* _(to fill in after I've reviewed the verdicts and
+  diagnoses: what I agreed with, what I challenged, and what I changed)_
+
 <!-- ═══════════════════════ UNIT 8 — THE TEST ═══════════════════════ -->
 
 ---
@@ -939,7 +970,7 @@ identical, field for field):
 | flood_same_creator | 12 / 0 | 12 / 0 |
 | **Total** | **46 / 10** | **46 / 10** |
 | AI text labelled **human** (EV + PI rows) | 4 (EV01, EV05, PI01, PI02) | **3** (EV05, PI01, PI02) |
-| Human text labelled **human** (FP rows judged) | 6 of 7 | **3 of 7** |
+| Human text labelled **human** (FP rows judged) | 4 of 7 (FP01, FP03, FP06, FP07) | **1 of 7** (FP01) |
 | Human text labelled **ai** | 0 | 0 |
 
 Full after table, same format as before:
@@ -1051,16 +1082,73 @@ contradiction, but it's a trade, not a free fix.
 
 ## What's Still Broken
 
-<!-- For each attack still getting through and each criterion still missed:
-     what you'd do, and why you stopped. -->
+**Pattern A: six evasions still land in unsure (EV02, EV03, EV06, EV07,
+EV09, PI03).**
+- *What I'd do:* make signal two harder to steer with structure. Leave very
+  short sentences ("Really.", "True.") out of the spread calculation. Treat
+  semicolons as sentence breaks so EV07 can't collapse seven sentences into
+  one. Then add a measure an attacker can't change without rewriting the AI
+  wording itself.
+- *Why I stopped:* it's a redesign of signal two and needs its own before/after.
+  The quick alternative, lowering the AI line to ~0.70, would have accused FP02
+  (real writing, 0.739). I'd rather these stay unsure than buy them with a
+  writer.
 
+**Pattern C: instruction text still clears AI text (PI01, PI02).**
+- *What I'd do:* score signal one per paragraph and keep the most AI-like
+  paragraph, so a bolted-on line or paragraph (PI01, PI02, and EV09's human
+  opener) can't dilute the rest.
+- *Why I stopped:* per-paragraph scoring makes short paragraphs noisier, and
+  signal one already scores plain human writing 0.68–0.78. Without recalibrating
+  against criterion 1, it could turn into accusations.
 
+**EV01 (typos) is now unsure, but still not labelled AI.**
+- *What I'd do:* nothing more in the combining rule. The fix would be in signal
+  one (correct spelling before measuring perplexity).
+- *Why I stopped:* spell-correction would make every human writer who makes
+  typos, including second-language writers, look *more* predictable to signal
+  one. The people who'd pay are the ones criterion 1 protects.
+
+**EV05 (heavy human edit) — I wouldn't fix it.** A person rewrote it. A
+text-only detector has no basis to call it AI.
+
+**Criterion 5, still missed (7/7/6), and RQ10/RQ11.**
+- *What I'd do:* only count requests that pass validation against the
+  per-creator limit (Flask-Limiter's `deduct_when`), so a malformed request
+  always gets its real 400. Add a separate, looser per-address limit for
+  rejected requests, so junk floods are still throttled. Also have the 429
+  handler read `request.form`, so a form-encoded request is logged with the
+  creator it named instead of `unknown`.
+- *Why I stopped:* it was the second change, and the rule is one. It also
+  changes the flood result: the `flood_same_creator` rows are all 400s
+  (9 words), so with `deduct_when` alone they would never be limited. It needs
+  the second limit, which is more design than a one-line fix.
+
+**Per-creator limits can be dodged.** A script that invents a new `creator_id`
+per request (as `attacks.csv` does) is never limited.
+- *What I'd do:* add a per-address ceiling well above a household's use
+  (e.g. 30/minute) on top of the per-creator one.
+- *Why I stopped:* not measured by any criterion or attack outcome here, and it
+  would mean a second limiter change.
+
+**The cost of my improvement.** FP03, FP06, FP07 and two of my ten human pieces
+are now "we can't tell" instead of "written by a person". Underneath that,
+signal one scores plain and formulaic human writing as AI (0.78–0.88).
+- *What I'd do:* recalibrate or replace signal one (a larger model, or a
+  midpoint that depends on text length).
+- *Why I stopped:* that's a new signal one, and it would need the whole unit 7
+  calibration again.
 
 **The trade I'd make if this ran for real:**
 
-<!-- Two sentences. Fewer wrong accusations means more AI text getting through.
-     Say which way you'd go and WHO PAYS FOR IT. -->
-
+I'd keep choosing fewer wrong accusations. When the evidence is thin or the
+signals contradict each other, the system says "we can't tell" rather than
+"AI". That means AI-written text gets through as unsure. The people who pay
+for that are the site and honest writers competing against it, plus, since my
+improvement, plain and formulaic writers who are no longer actively cleared. I
+accept that because a wrong accusation lands on one named person who has to
+prove a negative, while a missed AI text costs the site a little and can still
+be caught on appeal or by a human reader.
 
 
 <!-- ═════════════════════════════════════════════════════════════════════
