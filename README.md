@@ -449,18 +449,26 @@ $ curl "http://127.0.0.1:5000/log?limit=2"
   Brillat-Savarin dropped out: no Gutenberg text, no source text, and a
   translation.
 
-**Moment 4 (unit 8): drafting the verdicts, diagnoses and the improvement**
+**Moment 4 (unit 8): tracking results and articulating the failures**
 
 - *What I asked for:* I picked the rate limits (5/minute, 50/day) from options
-  with reasons. I asked Claude to run everything, and to draft the held/broke
-  marks, the verdicts, the diagnoses and the choice of improvement for me to
-  review.
-- *What came back:* the runs, the marks, and diagnoses backed by measurements
-  it took after the run (per-feature style numbers, per-token perplexity, the
-  unedited paragraph's score). It held itself to the strict reading: criterion
-  5 is marked MISSED for one 429 in trial 3, and `unsure` counts as broke for
-  AI text. It proposed the case-8 change and predicted, before re-running,
-  which rows would move and what it would cost.
+  with reasons. I asked Claude to run everything, keep track of the results and
+  the audit log in this README as each milestone finished, and draft the
+  held/broke marks, the verdicts, the diagnoses and the choice of improvement
+  for me to review.
+- *What came back:*
+  1. **Record-keeping.** Results and log entries went into the README straight
+     from the real output files and `logs/audit.jsonl` whenever they were
+     needed. That saved me the manual copy-pasting of 56 attack rows, 15
+     trial results and the log extract, and the mistakes that come with it.
+  2. **Clear failure points.** It set out the results and where each failure
+     happened: the stage, the mechanism and the numbers behind it
+     (per-feature style scores, per-token perplexity, the unedited paragraph's
+     score). That let me go straight to each failure point and decide where an
+     improvement belonged, instead of re-reading every response myself. It held
+     to the strict reading: criterion 5 is MISSED for one 429 in trial 3, and
+     `unsure` counts as broke for AI text. It also predicted which rows the
+     case-8 change would move, and its cost, before the re-run.
 - *What I changed:* _(to fill in after I've reviewed the verdicts and
   diagnoses: what I agreed with, what I challenged, and what I changed)_
 
